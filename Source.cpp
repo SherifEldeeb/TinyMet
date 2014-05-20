@@ -3,7 +3,7 @@
 *					  [TinyMet]					*
 *		The Tiny Meterpreter Executable		*
 *************************************************
-- @SherifEldeeb
+- @SheriefEldeeb
 - http://tinymet.com
 - http://eldeeb.net
 - Made in Egypt :)
