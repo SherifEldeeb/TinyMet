@@ -36,6 +36,3 @@ Example:
 Setting the filename to "2_host.com_443.exe" and running it without args will do exactly the same as Example#1.
 ```
 
----
-
-Please visit http://tinymet.com for details.
